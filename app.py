@@ -6,8 +6,9 @@ import uuid
 from PIL import Image
 import streamlit as st
 
+# Percorsi
 DB_PATH = "recipes.db"
-IMG_DIR = "images"
+IMG_DIR = ".streamlit/images"   # cartella sicura anche sul cloud
 PLACEHOLDER_IMG = "assets/placeholder.png"
 
 os.makedirs(IMG_DIR, exist_ok=True)
@@ -36,6 +37,8 @@ def init_db():
         """)
 
 def to_tag_list(tags_csv: str) -> List[str]:
+    if isinstance(tags_csv, list):
+        return [t.strip() for t in tags_csv if t.strip()]
     return [t.strip() for t in tags_csv.split("|") if t.strip()] if tags_csv else []
 
 def from_tag_list(tags: List[str]) -> str:
@@ -111,7 +114,7 @@ def save_uploaded_image(file) -> Optional[str]:
         ext = os.path.splitext(file.name)[1].lower() or ".png"
         name = f"{uuid.uuid4().hex}{ext}"
         path = os.path.join(IMG_DIR, name)
-        img = Image.open(file)
+        img = Image.open(file).convert("RGB")
         img.save(path)
         return path
     except Exception as e:
@@ -203,24 +206,19 @@ init_db()
 st.title("🍳 Spadellando con Ale - Ricettario online")
 st.caption("Cerca, aggiungi, modifica e condividi ricette.")
 
-# Sidebar: add/search/export
+# Sidebar
 with st.sidebar:
     st.header("Azioni")
     mode = st.radio("Modalità", ["Ricettario", "Carica una nuova ricetta!"], horizontal=True)
-
     with get_conn() as conn:
         all_tags = list_all_tags(conn)
-
     st.divider()
-
-# --- Modalità crea/modifica ricetta ---
-
-# --- Modalità crea/modifica ricetta ---
 
 if st.session_state.get("show_balloons"):
     st.balloons()
     st.session_state["show_balloons"] = False
 
+# --- Modalità crea/modifica ---
 if mode == "Carica una nuova ricetta!" or st.session_state.get("edit_id"):
     editing_id = st.session_state.get("edit_id")
     st.subheader("✏️ Modulo ricetta")
@@ -235,46 +233,19 @@ if mode == "Carica una nuova ricetta!" or st.session_state.get("edit_id"):
 
     with st.form(key="recipe_form", clear_on_submit=False):
         title = st.text_input("Titolo", value=(data["title"] if data else ""))
-
-        prep = st.number_input(
-            "Minuti di preparazione", min_value=0,
-            value=int(data["prep_minutes"]) if data and data["prep_minutes"] else 0
-        )
-
-        tags_input = st.multiselect(
-            "Categorie",
-            options=TAG_OPTIONS,
-            default=to_tag_list(data["tags"]) if data else []
-        )
-
-        ingredients = st.text_area(
-            "Ingredienti",
-            height=150,
-            value=(data["ingredients"] if data else "")
-        )
-
-        steps = st.text_area(
-            "Preparazione",
-            height=200,
-            value=(data["steps"] if data else "")
-        )
-
-        image_file = st.file_uploader(
-            "Immagine",
-            type=["png", "jpg", "jpeg", "webp"]
-        )
-
+        prep = st.number_input("Minuti di preparazione", min_value=0, value=int(data["prep_minutes"]) if data and data["prep_minutes"] else 0)
+        tags_input = st.multiselect("Categorie", options=TAG_OPTIONS, default=to_tag_list(data["tags"]) if data else [])
+        ingredients = st.text_area("Ingredienti", height=150, value=(data["ingredients"] if data else ""))
+        steps = st.text_area("Preparazione", height=200, value=(data["steps"] if data else ""))
+        image_file = st.file_uploader("Immagine", type=["png", "jpg", "jpeg", "webp"])
         submitted = st.form_submit_button("Salva")
 
-        # --- Gestione salvataggio ---
         if submitted:
             if not title.strip() or not ingredients.strip() or not steps.strip():
                 st.error("Titolo, ingredienti e preparazione sono obbligatori!")
             else:
                 with st.spinner("Salvando la ricetta... ⏳"):
-                    import time
-                    time.sleep(3)  # piccolo delay per effetto animazione
-
+                    import time; time.sleep(2)
                     img_path = data["image_path"] if data else None
                     if image_file is not None:
                         img_path = save_uploaded_image(image_file)
@@ -285,7 +256,7 @@ if mode == "Carica una nuova ricetta!" or st.session_state.get("edit_id"):
                             title.strip(),
                             ingredients.strip(),
                             steps.strip(),
-                            to_tag_list(tags_input),
+                            tags_input,
                             int(prep) if prep else None,
                             img_path
                         )
@@ -296,20 +267,17 @@ if mode == "Carica una nuova ricetta!" or st.session_state.get("edit_id"):
                             title.strip(),
                             ingredients.strip(),
                             steps.strip(),
-                            to_tag_list(tags_input),
+                            tags_input,
                             int(prep) if prep else None,
                             img_path
                         )
                         st.success("Ricetta salvata ✅")
                 
-                # Flag per mostrare palloncini dopo il rerun
                 st.session_state["show_balloons"] = True
                 st.session_state["edit_id"] = None
                 st.rerun()
 
-
-
-# --- Modalità visualizza ricette ---
+# --- Modalità visualizza ---
 else:
     st.subheader("🔎 Cerca ricette")
     qcol, tcol = st.columns([2,2])
