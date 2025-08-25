@@ -36,10 +36,13 @@ def init_db():
             )
         """)
 
-def to_tag_list(tags_csv: str) -> List[str]:
-    if isinstance(tags_csv, list):
-        return [t.strip() for t in tags_csv if t.strip()]
-    return [t.strip() for t in tags_csv.split("|") if t.strip()] if tags_csv else []
+def to_tag_list(tags):
+    if isinstance(tags, list): 
+        return [t.strip() for t in tags if t.strip()]
+    elif isinstance(tags, str):
+        return [t.strip() for t in tags.split("|") if t.strip()]
+    else:
+        return []
 
 def from_tag_list(tags: List[str]) -> str:
     seen = set()
